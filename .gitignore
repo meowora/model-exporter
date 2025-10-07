@@ -1,0 +1,9 @@
+.idea
+.gradle
+out
+build
+!src/input/README.md
+/src/input*
+*.iml
+.DS_Store
+run

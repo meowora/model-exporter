@@ -1,0 +1,7 @@
+[versions]
+fabric-loom = "1.11-SNAPSHOT"
+
+[libraries]
+
+[plugins]
+fabric-loom = { id = "fabric-loom", version.ref = "fabric-loom" }
