@@ -2,6 +2,7 @@ package gay.mona.model.converter;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.mojang.math.MatrixUtil;
 import com.mojang.math.Transformation;
 import net.minecraft.client.renderer.block.model.*;
 import net.minecraft.client.renderer.block.model.multipart.MultiPartModel;
@@ -14,6 +15,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.repository.PackRepository;
 import net.minecraft.server.packs.resources.MultiPackResourceManager;
+import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.util.random.WeightedList;
 import net.minecraft.world.level.block.Block;
@@ -24,6 +26,8 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 import net.minecraft.world.level.validation.DirectoryValidator;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Matrix3f;
+import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
@@ -221,50 +225,69 @@ public class ModelConverter {
                             }
                             var faceObject = new JsonObject();
 
-                            var actualDirection = Direction.rotate(transformMatrix, direction);
+                            var transformedDirection = Direction.rotate(transformMatrix, direction);
                             final BlockElementFace.UVs uvs;
                             if (face.uvs() != null) {
                                 uvs = face.uvs();
                             } else {
-                                uvs = FaceBakery.defaultFaceUV(fromCopy, toCopy, actualDirection);
+                                uvs = FaceBakery.defaultFaceUV(fromCopy, toCopy, transformedDirection);
                             }
 
                             var uv = new JsonArray();
 
+                            var rotation = face.rotation();
                             if (modelState.uvLock()) {
-                                var rotation = face.rotation();
                                 var firstVertex = rotation.rotateVertexIndex(0);
                                 var secondVertex = rotation.rotateVertexIndex(2);
-                                var transformationMatrix = blockModelState.inverseFaceTransformation(actualDirection);
-                                var uvOffset = new Vector3f(8, 8, 0);
-                                var startUv = new Vector3f(
-                                        uvs.getVertexU(firstVertex),
-                                        uvs.getVertexV(firstVertex),
-                                        0).sub(uvOffset);
-                                var endUv = new Vector3f(
-                                        uvs.getVertexU(secondVertex),
-                                        uvs.getVertexV(secondVertex),
-                                        0).sub(uvOffset);
-                                transformationMatrix.transformPosition(startUv);
-                                transformationMatrix.transformPosition(endUv);
-                                startUv.add(uvOffset);
-                                endUv.add(uvOffset);
+                                var transformationMatrix = blockModelState.inverseFaceTransformation(transformedDirection);
+                                var startUv = new Vector3f(uvs.getVertexU(firstVertex), uvs.getVertexV(firstVertex), 0);
+                                var endUv = new Vector3f(uvs.getVertexU(secondVertex), uvs.getVertexV(secondVertex), 0);
+
+                                if (!MatrixUtil.isIdentity(transformationMatrix)) {
+                                    var uvOffset = new Vector3f(8, 8, 0);
+                                    startUv.sub(uvOffset);
+                                    endUv.sub(uvOffset);
+                                    transformationMatrix.transformPosition(startUv);
+                                    transformationMatrix.transformPosition(endUv);
+                                    startUv.add(uvOffset);
+                                    endUv.add(uvOffset);
+                                }
 
                                 uv.add(startUv.x);
                                 uv.add(startUv.y);
                                 uv.add(endUv.x);
                                 uv.add(endUv.y);
+
+                                faceObject.addProperty("rotation", rotation.shift * 90);
                             } else {
+                                var global = BlockMath.VANILLA_UV_TRANSFORM_LOCAL_TO_GLOBAL.get(direction);
+                                var local = BlockMath.VANILLA_UV_TRANSFORM_GLOBAL_TO_LOCAL.get(transformedDirection);
+                                var rotationMatrix = new Matrix4f()
+                                        .translation(0.5F, 0.5F, 0.5F)
+                                        .mul(global.getMatrixCopy()
+                                                .mul(blockModelState.transformation().getMatrix())
+                                                .mul(local.getMatrix())
+                                        )
+                                        .translate(-0.5F, -0.5F, -0.5F);
+
+                                float radians = rotation.shift * 90f * Mth.DEG_TO_RAD;
+                                var vector3f = new Matrix3f(rotationMatrix)
+                                        .transform(Mth.cos(radians), Mth.sin(radians), 0.0f, new Vector3f());
+
                                 uv.add(uvs.minU());
                                 uv.add(uvs.minV());
                                 uv.add(uvs.maxU());
                                 uv.add(uvs.maxV());
+
+                                faceObject.addProperty("rotation", Mth.wrapDegrees(
+                                        Mth.roundToward((int) Math.toDegrees(Math.atan2(vector3f.y(), vector3f.x())), 90)
+                                ));
                             }
 
                             faceObject.add("uv", uv);
 
                             faceObject.addProperty("texture", getOrCreateKey(textureReferences, model, face.texture()));
-                            faces.add(actualDirection.getSerializedName(), faceObject);
+                            faces.add(transformedDirection.getSerializedName(), faceObject);
                         });
                         if (faces.isEmpty()) {
                             continue;
