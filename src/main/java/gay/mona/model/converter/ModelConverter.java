@@ -240,23 +240,30 @@ public class ModelConverter {
                                 var firstVertex = rotation.rotateVertexIndex(0);
                                 var secondVertex = rotation.rotateVertexIndex(2);
                                 var transformationMatrix = blockModelState.inverseFaceTransformation(transformedDirection);
+
                                 var startUv = new Vector3f(uvs.getVertexU(firstVertex), uvs.getVertexV(firstVertex), 0);
                                 var endUv = new Vector3f(uvs.getVertexU(secondVertex), uvs.getVertexV(secondVertex), 0);
 
+                                var transUv1 = new Vector3f(startUv);
+                                var transUv2 = new Vector3f(endUv);
+
                                 if (!MatrixUtil.isIdentity(transformationMatrix)) {
                                     var uvOffset = new Vector3f(8, 8, 0);
-                                    startUv.sub(uvOffset);
-                                    endUv.sub(uvOffset);
-                                    transformationMatrix.transformPosition(startUv);
-                                    transformationMatrix.transformPosition(endUv);
-                                    startUv.add(uvOffset);
-                                    endUv.add(uvOffset);
+                                    transUv1.sub(uvOffset);
+                                    transUv2.sub(uvOffset);
+                                    transformationMatrix.transformPosition(transUv1);
+                                    transformationMatrix.transformPosition(transUv2);
+                                    transUv1.add(uvOffset);
+                                    transUv2.add(uvOffset);
                                 }
 
-                                uv.add(startUv.x);
-                                uv.add(startUv.y);
-                                uv.add(endUv.x);
-                                uv.add(endUv.y);
+                                var mirrorX = Math.signum(endUv.x - startUv.x) == Math.signum(transUv2.x - transUv1.x);
+                                var mirrorY = Math.signum(endUv.y - startUv.y) == Math.signum(transUv2.y - transUv1.y);
+
+                                uv.add(mirrorX ? transUv1.x : transUv2.x);
+                                uv.add(mirrorY ? transUv1.y : transUv2.y);
+                                uv.add(mirrorX ? transUv2.x : transUv1.x);
+                                uv.add(mirrorY ? transUv2.y : transUv1.y);
 
                                 faceObject.addProperty("rotation", rotation.shift * 90);
                             } else {
