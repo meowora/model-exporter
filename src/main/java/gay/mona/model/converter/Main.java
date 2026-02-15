@@ -21,6 +21,7 @@ import java.util.Objects;
 public class Main {
     public static Path assetsDirectory;
     public static int assetVersion;
+    public static boolean shouldNotCenterY;
 
     public static void main(String[] args) throws IOException {
         SharedConstants.tryDetectVersion();
@@ -31,6 +32,7 @@ public class Main {
         var input = optionparser.accepts("input", "Input folder").withRequiredArg().defaultsTo("input");
         var assetDirectory = optionparser.accepts("assetsDir", "Assets Directory").withRequiredArg();
         var assetIndex  = optionparser.accepts("assetIndex", "").withRequiredArg().ofType(Integer.class);
+        var dontCenterInY = optionparser.accepts("dontCenterY").withOptionalArg().ofType(Boolean.class);
         OptionSet optionset = optionparser.parse(args);
 
         if (!optionset.has(help)) {
@@ -38,25 +40,37 @@ public class Main {
             Path inputPath = Path.of(optionset.valueOf(input));
             assetsDirectory = Path.of(optionset.valueOf(assetDirectory));
             assetVersion = optionset.valueOf(assetIndex);
+            shouldNotCenterY = optionset.has(dontCenterInY);
+
             Bootstrap.bootStrap();
             ClientBootstrap.bootstrap();
             ModelConverter.bootstrap();
-            DataGenerator dataGenerator = new DataGenerator(outputPath.resolve("_"), SharedConstants.getCurrentVersion(), true);
+            DataGenerator dataGenerator = new DataGenerator(
+                    outputPath.resolve("_"),
+                    SharedConstants.getCurrentVersion(),
+                    true);
             try (var stream = Files.walk(inputPath)) {
                 stream.filter(path -> path.getFileName().toString().endsWith(".nbt")).map(path -> {
                     try {
                         var structure = new StructureTemplate();
-                        structure.load(BuiltInRegistries.BLOCK, Objects.requireNonNull(NbtIo.readCompressed(path, NbtAccounter.unlimitedHeap())));
+                        structure.load(
+                                BuiltInRegistries.BLOCK,
+                                Objects.requireNonNull(NbtIo.readCompressed(path, NbtAccounter.unlimitedHeap())));
                         return new Context(inputPath.relativize(path), structure);
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
                 }).forEach(context -> {
-                    var model =  ModelConverter.convertBlocksToJsonModel(context.template);
-                    var outputFile = outputPath.resolve(context.fileName).resolveSibling(context.fileName.getFileName().toString().replace(".nbt", ".json"));
+                    var model = ModelConverter.convertBlocksToJsonModel(context.template);
+                    var outputFile = outputPath.resolve(context.fileName)
+                            .resolveSibling(context.fileName.getFileName().toString().replace(".nbt", ".json"));
                     try {
                         Files.createDirectories(outputFile.getParent());
-                        Files.writeString(outputFile, model.toString(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+                        Files.writeString(
+                                outputFile,
+                                model.toString(),
+                                StandardOpenOption.CREATE,
+                                StandardOpenOption.TRUNCATE_EXISTING);
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
@@ -70,5 +84,6 @@ public class Main {
         }
     }
 
-    record Context(Path fileName, StructureTemplate template) {}
+    record Context(Path fileName, StructureTemplate template) {
+    }
 }

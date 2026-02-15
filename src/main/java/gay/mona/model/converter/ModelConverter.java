@@ -88,7 +88,7 @@ public class ModelConverter {
         float centeringX = 8.0F - (float) (max.getX() + 1 + min.getX()) * globalScale * 8.0F;
         float centeringY = 8.0F - (float) (max.getY() + 1 + min.getY()) * globalScale * 8.0F;
         float centeringZ = 8.0F - (float) (max.getZ() + 1 + min.getZ()) * globalScale * 8.0F;
-        var centeringVec = new Vector3f(centeringX, centeringY, centeringZ);
+        var centeringVec = new Vector3f(centeringX, Main.shouldNotCenterY ? centeringY : 0, centeringZ);
 
         var pallet = template.palettes.getFirst();
         var blockInfoMatrix = new StructureTemplate.StructureBlockInfo[max.getX() + 1][max.getY() + 1][max.getZ() + 1];
